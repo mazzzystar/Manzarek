@@ -33,6 +33,7 @@ class Timeline:
         self.seq_list = seq_list
         self.contain_list = contain_list
         self.my_unique_id = config.my_unique_id
+        self.message_user = set()
 
     def init_dict(self):
         # black_uid
@@ -42,7 +43,7 @@ class Timeline:
         # key_match dict
         key_words_zy = [u"征友：", u"征友:", u"发一个征友", u"一条征友",u"征友启事"]
         key_words_xq = [u"要相亲", u"去相亲", u"我相亲"]
-        key_words_npy = [u"没有男朋友", u"假装有男朋友", u"没有女朋友", u"假装有女朋友",u"单身狗", u"求男朋友", u"求一个男朋友", u"找个男朋友", u"求男友", u"求一个女朋友", u"找个女朋友",u"想谈恋爱", u"想有个男朋友", u"想有个男票"]
+        key_words_npy = [u"没有男朋友", u"假装有男朋友", u"我介绍男朋友", u"我介绍女朋友", u"没有女朋友", u"假装有女朋友",u"单身狗", u"求男朋友", u"求一个男朋友", u"找个男朋友", u"求男友", u"求一个女朋友", u"找个女朋友",u"想谈恋爱", u"想有个男朋友", u"想有个男票"]
 
         key_words_zy.extend(key_words_xq)
         key_words_zy.extend(key_words_npy)
@@ -141,10 +142,14 @@ class Timeline:
     def contain_match(self, text):
         # 包含匹配是否包含相亲信息
         for tup in self.contain_list:
+            flag = 1
             for word in tup:
                 if word not in text:
-                    return 0
-        return 1
+                    flag = 0
+                    break
+            if flag:
+                return 1
+        return 0
 
     def if_duplicate(self, text):
         # 去重
@@ -245,7 +250,7 @@ class Timeline:
             if self.judge(newest_text):
                 msg = ''
                 user_name = i['user']['name']
-                msg += '@'+user_name + ' '
+                msg = msg +  u"转" + '@'+user_name + ' '
 
                 in_reply_to_user_id = i['in_reply_to_user_id']
                 if not in_reply_to_user_id:
@@ -303,8 +308,11 @@ class Timeline:
                 continue
 
             # 构建信息
+            if uid in self.message_user:
+                continue
+            self.message_user.add(uid)
             msg = ''
-            msg += '@'+user_name + ' '
+            msg = msg +  u"转" + '@'+user_name + ' '
 
             try:
                 location = i['dm']['sender']['location']
@@ -328,7 +336,7 @@ class Timeline:
                 msg += '[%s]' % birthday
 
             msg = msg +  ' ' + text
-            msg += u"(用户私信)"
+            msg += u"(用户私信:该用户向你表明TA正单身)"
             msg_list.append(msg)
         return msg_list
 
@@ -359,10 +367,9 @@ class Timeline:
                 # msg_list.extend(followers_msg)
 
                 # 私信信息,半小时监测1次数
-                if random.random() < 0.005:
-                    conversation_msg_data = self.get_direct_message()
-                    conversation_msg_list = tl.parse_conversion(conversation_msg_data)
-                    self.send_message(conversation_msg_list)
+                conversation_msg_data = self.get_direct_message()
+                conversation_msg_list = tl.parse_conversion(conversation_msg_data)
+                self.send_message(conversation_msg_list)
 
                 time.sleep(interval)
             except Exception as e:

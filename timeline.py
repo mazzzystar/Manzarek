@@ -218,7 +218,7 @@ class Timeline:
             if self.judge(newest_text):
                 msg = ''
                 user_name = i['user']['name']
-                msg += '@'+user_name
+                msg += '@'+user_name + ' '
 
                 in_reply_to_user_id = i['in_reply_to_user_id']
                 if not in_reply_to_user_id:
@@ -232,7 +232,7 @@ class Timeline:
                     birthday = i['user']['birthday']
                     if birthday:
                         msg += '[%s]' % birthday
-                msg += text
+                msg = msg +  ' ' + text
                 msg_list.append(msg)
         return msg_list
 

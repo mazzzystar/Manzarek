@@ -53,11 +53,14 @@ class Timeline:
         followers_url = 'http://api.fanfou.com/users/followers.json'
         followers_list = requests.get(followers_url, auth=(self.username, self.password))
         followers = followers_list.json()
+        # print followers
         new_followers = set()
         all_followers = set()
         new_user_info = []
         for user in followers:
             id = user['unique_id']
+
+            # print id, description
             all_followers.add(id)
 
             if id in local_followers:
@@ -88,6 +91,12 @@ class Timeline:
                 birthday = ''
             if birthday:
                 msg += '[%s]' % birthday
+            try:
+                description  = user['description']
+            except:
+                description = ''
+            if description:
+                msg = msg + ':' + description
 
             msg += u"(关注我将被自动展示)"
             new_user_info.append(msg)
@@ -96,11 +105,18 @@ class Timeline:
 
         return new_user_info
 
-
+    def show_direct_message(self):
+        direct_message_url = 'http://api.fanfou.com/direct_messages/conversation.json'
+        pass
 
     def fetch(self):
-        request=requests.get(self.url, auth=(self.username, self.password))
-        data = request.json()
+        try:
+            request=requests.get(self.url, auth=(self.username, self.password))
+            data = request.json()
+        except:
+            time.sleep(300)
+            request=requests.get(self.url, auth=(self.username, self.password))
+            data = request.json()
         return data
 
     def in_black_list(self, uid, uname):
@@ -179,14 +195,18 @@ class Timeline:
             except:
                 uid = ''
             name = i['user']['name']
+
             if self.in_black_list(uid, name):
                 continue
             if uid in id_set:
                 continue
-            id_set.add(uid)
+
+            if uid:
+                id_set.add(uid)
 
             text = i['text']
             newest_text = text.split('@')[0]
+            # print uid, newest_text
 
             if self.judge(newest_text):
                 msg = ''
@@ -216,7 +236,7 @@ class Timeline:
                 data = tl.fetch()
                 msg_list = tl.parse(data)
                 followers_msg = []
-                if random.random() < 0.02:
+                if random.random() < 0.002:
                     followers_msg = tl.show_followers()
                 msg_list.extend(followers_msg)
                 if len(msg_list):
@@ -243,7 +263,11 @@ class Timeline:
 
 if __name__ == '__main__':
     tl = Timeline()
-    tl.send_message(5)
+    try:
+        tl.send_message(5)
+    except:
+        time.sleep(10)
+        tl.send_message(5)
     # tl.show_followers()
 
     # while(1):

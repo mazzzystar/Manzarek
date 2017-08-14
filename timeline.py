@@ -96,6 +96,7 @@ class Timeline:
             except:
                 description = ''
             if description:
+                description = description.replace('\n', ' ')
                 msg = msg + ':' + description
 
             msg += u"(关注我将被自动展示)"
@@ -112,8 +113,14 @@ class Timeline:
     def fetch(self):
         try:
             request=requests.get(self.url, auth=(self.username, self.password))
-            data = request.json()
-        except:
+            if request.status_code == 200:
+                data = request.json()
+            else:
+                time.sleep(3)
+                request=requests.get(self.url, auth=(self.username, self.password))
+                data = request.json()
+        except requests.ConnectionError, e:
+            print e
             time.sleep(300)
             request=requests.get(self.url, auth=(self.username, self.password))
             data = request.json()
@@ -235,10 +242,11 @@ class Timeline:
             try:
                 data = tl.fetch()
                 msg_list = tl.parse(data)
-                followers_msg = []
-                if random.random() < 0.002:
-                    followers_msg = tl.show_followers()
-                msg_list.extend(followers_msg)
+                # 暂时不展示个人信息
+                # followers_msg = []
+                # if random.random() < 0.9:
+                #     followers_msg = tl.show_followers()
+                # msg_list.extend(followers_msg)
                 if len(msg_list):
                     for item in msg_list:
                         print item
@@ -262,12 +270,13 @@ class Timeline:
 
 
 if __name__ == '__main__':
-    tl = Timeline()
     try:
-        tl.send_message(5)
+        tl = Timeline()
+        tl.send_message(10)
     except:
         time.sleep(10)
-        tl.send_message(5)
+        tl = Timeline()
+        tl.send_message(10)
     # tl.show_followers()
 
     # while(1):

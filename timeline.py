@@ -20,6 +20,7 @@ class Timeline:
         self.public_timeline_url = 'http://api.fanfou.com/statuses/public_timeline.json'
         self.followers_url = 'http://api.fanfou.com/users/followers.json'
         self.direct_message_url = 'http://api.fanfou.com/direct_messages/conversation_list.json'
+        self.send_private_msg_url = 'http://api.fanfou.com/private_messages/new.json'
         self.local_followers_file = 'followers.txt'
         self.local_conversion_file = 'conversions.txt'
         self.local_timeline_file = 'timelines.txt'
@@ -77,6 +78,22 @@ class Timeline:
             return
         try:
             f = open(uid_file, 'a')
+            for item in user_set:
+                f.write(item)
+                f.write('\n')
+            f.close()
+        except Exception as e:
+            print repr(e)
+
+    def save_followers(self, user_set, uid_file):
+        '''
+        因user可能会unfo,因此本地followers的uid更新
+        每次都重新写文件。
+        '''
+        if len(user_set) == 0:
+            return
+        try:
+            f = open(uid_file, 'w')
             for item in user_set:
                 f.write(item)
                 f.write('\n')
@@ -173,37 +190,59 @@ class Timeline:
             return 1
         return 0
 
-    def parse_followers(self):
+    def parse_followers(self, opposite_sex=1):
         '''
-        构建followers的个人信息，后续直接转发此信息。
+        构建followers的个人信息，同城followers互相发私信。
         '''
+        msg_info_set = set()
         local_followers = self.get_users_from_local(self.local_followers_file)
 
         followers = self.get_followers()
         # print followers
-        new_followers = set()
-        all_followers = set()
-        new_user_info = []
+        new_location_followers = []
+        all_location_followers = []
+
+        all_user_uid_set = set()
+
+        # 找出全部有location的用户
         for user in followers:
-            id = user['unique_id']
-
-            # print id, description
-            all_followers.add(id)
-
-            if id in local_followers:
+            uid = user['unique_id']
+            name = user['name']
+            if self.in_black_list(uid, name):
                 continue
-            new_followers.add(id)
 
-            msg = ''
-            user_name = user['name']
-            if user_name:
-                msg = '@'+user_name
             try:
                 location = user['location']
             except:
                 location = ''
-            if location:
-                msg += '[%s]' % location
+            if not location:
+                continue
+
+            # 记录全部followers的uid方便写入本地
+            all_user_uid_set.add(uid)
+
+            if uid not in local_followers:
+                new_location_followers.append(user)
+
+            if not len(new_location_followers):
+                # 没有新的有地址的用户
+                return msg_info_set
+
+            all_location_followers.append(user)
+
+        # 为每个用户制作信息字典
+        user_info_dict = {}
+        for user in all_location_followers:
+            # uid是用户唯一id
+            uid = user['unique_id']
+
+            msg = ''
+            user_name = user['name']
+            if user_name:
+                msg = u"TA与你同城。" + ' ' + '@' + user_name + ' '
+
+            location = user['location']
+            msg += '[%s]' % location
 
             try:
                 gender = user['gender']
@@ -218,6 +257,7 @@ class Timeline:
                 birthday = ''
             if birthday:
                 msg += '[%s]' % birthday
+
             try:
                 description  = user['description']
             except:
@@ -226,12 +266,94 @@ class Timeline:
                 description = description.replace('\n', ' ')
                 msg = msg + ':' + description
 
-            msg += u"(关注我将被自动展示)"
-            new_user_info.append(msg)
+            try:
+                # id用于拼凑用户主页url
+                id = user['id']
+            except:
+                id = ''
+            if id:
+                url = u'http://fanfou.com/' + id
+                msg = msg + '[' + url + ']'
+            msg += u"(请勿回复，如若打扰请unfo我)"
+            user_info_dict[uid] = msg
 
-        self.save_users(all_followers, self.local_followers_file)
+        # 制作发送信息
+        user_pair_set = set()
+        for new_user in new_location_followers:
+            new_uid = new_user['unique_id']
+            new_location = new_user['location']
+            new_id = new_user['id']
 
-        return new_user_info
+            try:
+                new_gender = new_user['gender']
+            except:
+                new_gender = ''
+
+            for all_user in all_location_followers:
+                uid = all_user['unique_id']
+                id = all_user['id']
+                if uid == new_uid:
+                    # 同一个用户
+                    continue
+
+                # 不遍历两次互相私信的用户
+                uid_pair = (new_uid, uid)
+                if uid_pair in user_pair_set:
+                    continue
+                user_pair_set.add((uid_pair))
+
+                location = all_user['location']
+
+                new_location = self.get_clean_city(new_location)
+                location = self.get_clean_city(location)
+
+                if new_location == location:
+                    if opposite_sex == 1:
+                        # 仅发送异性信息
+                        try:
+                            gender = all_user['gender']
+                        except:
+                            gender = ''
+
+                        # 两用户性别必须均不为空
+                        if not new_gender:
+                            # 新用户必须要有性别
+                            continue
+                        if not gender:
+                            continue
+
+                        # 两用户性别必须不同
+                        if gender == new_gender:
+                            continue
+                        # print new_name, new_gender,'|',name, gender
+                    try:
+                        new_user_msg = user_info_dict[new_uid]
+                        user_msg = user_info_dict[uid]
+
+                        # 给双方添加对方的信息
+                        msg_info_set.add((new_id, user_msg))
+                        msg_info_set.add((id, new_user_msg))
+                    except Exception as e:
+                        print e
+
+        self.save_followers(all_user_uid_set, self.local_followers_file)
+        return msg_info_set
+
+    # 城市判别时需要清洗
+    def get_clean_city(self, city):
+        special_case = [u"北京", u"上海"]
+
+        clean_city = ''
+        city_part = city.split()
+        if city_part[0] in special_case:
+            clean_city = city_part[0]
+        else:
+            if len(city_part) == 2:
+                clean_city = city_part[1]
+            else:
+                clean_city = city_part[0]
+        return clean_city
+
 
     def parse_timeline(self, data):
         local_timeline = self.get_users_from_local(self.local_timeline_file)
@@ -361,6 +483,24 @@ class Timeline:
         self.save_users(id_set, self.local_conversion_file)
         return msg_list
 
+    def send_private_msg(self, private_msg_set):
+        if not len(private_msg_set):
+            return
+
+        for msg in private_msg_set:
+            try:
+                id = msg[0]
+                text = msg[1]
+                information = {'user': id, 'text': text}
+                request=requests.post(self.send_private_msg_url, auth=(self.username, self.password), data=information)
+                print request.text
+                if request.status_code == 200:
+                    print "send private msg success"
+                else:
+                    print "fail"
+            except requests.ConnectionError, e:
+                print e
+
     def send_message(self, msg_list):
         if len(msg_list):
             for item in msg_list:
@@ -377,20 +517,28 @@ class Timeline:
             print 'go on...'
             try:
                 # public_timeline抓取信息
-                public_data = self.get_public_timeline()
-                public_msg_list = tl.parse_timeline(public_data)
-                self.send_message(public_msg_list)
+                try:
+                    public_data = self.get_public_timeline()
+                    public_msg_list = self.parse_timeline(public_data)
+                    self.send_message(public_msg_list)
+                except:
+                    pass
 
-                # 暂时不展示个人信息
-                # followers_msg = []
-                # if random.random() < 0.9:
-                #     followers_msg = tl.show_followers()
-                # msg_list.extend(followers_msg)
+                # 发送同城私信,每5小时检测一次
+                if random.random() < 0.0005:
+                    try:
+                        private_msg_set = self.parse_followers()
+                        self.send_private_msg(private_msg_set)
+                    except:
+                        pass
 
-                # 私信信息,半小时监测1次数
-                conversation_msg_data = self.get_direct_message()
-                conversation_msg_list = tl.parse_conversion(conversation_msg_data)
-                self.send_message(conversation_msg_list)
+                # 监控用户私信信息
+                try:
+                    conversation_msg_data = self.get_direct_message()
+                    conversation_msg_list = self.parse_conversion(conversation_msg_data)
+                    self.send_message(conversation_msg_list)
+                except:
+                    pass
 
                 time.sleep(interval)
             except Exception as e:
@@ -398,6 +546,7 @@ class Timeline:
                 time.sleep(interval)
 
 if __name__ == '__main__':
+    tl = Timeline()
     try:
         tl = Timeline()
         tl.run(10)

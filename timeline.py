@@ -1,9 +1,7 @@
 # coding:utf-8
 import requests
-import json
 import time
 import logging
-from lxml import etree
 import re
 import config
 import fanfou
@@ -22,6 +20,9 @@ class Timeline:
         self.public_timeline_url = 'http://api.fanfou.com/statuses/public_timeline.json'
         self.followers_url = 'http://api.fanfou.com/users/followers.json'
         self.direct_message_url = 'http://api.fanfou.com/direct_messages/conversation_list.json'
+        self.local_followers_file = 'followers.txt'
+        self.local_conversion_file = 'conversions.txt'
+        self.local_timeline_file = 'timelines.txt'
         self.username = config.client_key
         self.password = config.client_passwd
         self.client = fanfou.XAuth(config.consumer, config.client_key, config.client_passwd)
@@ -41,15 +42,15 @@ class Timeline:
         black_uname = [u"糗百"]
 
         # key_match dict
-        key_words_zy = [u"征友：", u"征友:", u"发一个征友", u"一条征友",u"征友启事"]
-        key_words_xq = [u"要相亲", u"去相亲", u"我相亲"]
+        key_words_zy = [u"征友：", u"征友:", u"发一个征友", u"一条征友",u"征友启事", u"我要征友",]
+        key_words_xq = [u"要相亲", u"要相親", u"去相亲", u"我相亲"]
         key_words_npy = [u"没有男朋友", u"假装有男朋友", u"我介绍男朋友", u"我介绍女朋友", u"没有女朋友", u"假装有女朋友",u"单身狗", u"求男朋友", u"求一个男朋友", u"找个男朋友", u"求男友", u"求一个女朋友", u"找个女朋友",u"想谈恋爱", u"想有个男朋友", u"想有个男票"]
 
         key_words_zy.extend(key_words_xq)
         key_words_zy.extend(key_words_npy)
 
         # sequence_match dict
-        male_seq_words = [u"本人男(.*?)岁(.*?)单身", u"本人男(.*?[0-9]+)岁(.*?)年薪", u"本人男(.*?[0-9]+)年(.*?)房", u"本人男(.*?[0-9]+)后(.*?)房", u"男(.*?[0-9]+)(.*?)车"]
+        male_seq_words = [u"本人男(.*?)岁(.*?)单身", u"本人男(.*?[0-9]+)岁(.*?)年薪", u"本人男(.*?[0-9]+)年(.*?)房", u"本人男(.*?[0-9]+)后(.*?)房", u"男(.*?[0-9]+)(.*?)车", u"我单身(.*?[0-9]+)年"]
         female_seq_words = [u"(.*?[0-9]+)年妹子(.*?)征男朋友", u"女(.*?[0-9]+)岁(.*?)希望(.*?)", u"(.*?[0-9]+)后妹子(.*?)征友"]
         male_seq_words.extend(female_seq_words)
 
@@ -68,26 +69,33 @@ class Timeline:
             return 1
         return 0
 
-    def save_followers(self, followers_set):
+    def save_users(self, user_set, uid_file):
         '''
-        将followers的id保存成文件
+        user_id保存成文件
         '''
-        f = open('followers.txt', 'w')
-        for item in followers_set:
-            f.write(item)
-            f.write('\n')
-        f.close()
+        if len(user_set) == 0:
+            return
+        try:
+            f = open(uid_file, 'a')
+            for item in user_set:
+                f.write(item)
+                f.write('\n')
+            f.close()
+        except Exception as e:
+            print repr(e)
 
-    def get_followers_from_local(self, ff):
+
+    def get_users_from_local(self, ff):
         '''
-        从本地dump followers
+        从本地dump users
         '''
-        followers = set()
+        users = set()
         try:
             f = open(ff, 'r')
             for item in f:
-                followers.add(item.strip())
-            return followers
+                users.add(item.strip())
+            f.close()
+            return users
         except:
             return set()
 
@@ -169,7 +177,7 @@ class Timeline:
         '''
         构建followers的个人信息，后续直接转发此信息。
         '''
-        local_followers = self.get_followers_from_local('followers.txt')
+        local_followers = self.get_users_from_local(self.local_followers_file)
 
         followers = self.get_followers()
         # print followers
@@ -221,11 +229,13 @@ class Timeline:
             msg += u"(关注我将被自动展示)"
             new_user_info.append(msg)
 
-        self.save_followers(all_followers)
+        self.save_users(all_followers, self.local_followers_file)
 
         return new_user_info
 
     def parse_timeline(self, data):
+        local_timeline = self.get_users_from_local(self.local_timeline_file)
+
         id_set = set()
         msg_list = []
         for i in data:
@@ -238,6 +248,8 @@ class Timeline:
             if self.in_black_list(uid, name):
                 continue
             if uid in id_set:
+                continue
+            if uid in local_timeline:
                 continue
 
             if uid:
@@ -266,9 +278,14 @@ class Timeline:
                         msg += '[%s]' % birthday
                 msg = msg +  ' ' + text
                 msg_list.append(msg)
+
+        self.save_users(id_set, self.local_timeline_file)
+
         return msg_list
 
     def parse_conversion(self, data):
+        local_conversion = self.get_users_from_local(self.local_conversion_file)
+
         id_set = set()
         msg_list = []
         for i in data:
@@ -277,6 +294,8 @@ class Timeline:
             except:
                 uid = ''
             if uid in id_set:
+                continue
+            if uid in local_conversion:
                 continue
             if uid == self.my_unique_id:
                 continue
@@ -338,6 +357,8 @@ class Timeline:
             msg = msg +  ' ' + text
             msg += u"(用户私信:该用户向你表明TA正单身)"
             msg_list.append(msg)
+
+        self.save_users(id_set, self.local_conversion_file)
         return msg_list
 
     def send_message(self, msg_list):

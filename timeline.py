@@ -226,6 +226,7 @@ class Timeline:
 
             if not len(new_location_followers):
                 # 没有新的有地址的用户
+                self.save_followers(all_user_uid_set, self.local_followers_file)
                 return msg_info_set
 
             all_location_followers.append(user)

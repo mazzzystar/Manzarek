@@ -22,7 +22,7 @@ class Timeline:
         self.direct_message_url = 'http://api.fanfou.com/direct_messages/conversation_list.json'
         self.send_private_msg_url = 'http://api.fanfou.com/private_messages/new.json'
         self.local_followers_file = 'followers.txt'
-        self.local_conversion_file = 'conversions.txt'
+        self.local_conversation_file = 'conversations.txt'
         self.local_timeline_file = 'timelines.txt'
         self.username = config.client_key
         self.password = config.client_passwd
@@ -406,8 +406,8 @@ class Timeline:
 
         return msg_list
 
-    def parse_conversion(self, data):
-        local_conversion = self.get_users_from_local(self.local_conversion_file)
+    def parse_conversation(self, data):
+        local_conversation = self.get_users_from_local(self.local_conversation_file)
 
         id_set = set()
         msg_list = []
@@ -418,7 +418,7 @@ class Timeline:
                 uid = ''
             if uid in id_set:
                 continue
-            if uid in local_conversion:
+            if uid in local_conversation:
                 continue
             if uid == self.my_unique_id:
                 continue
@@ -481,7 +481,7 @@ class Timeline:
             msg += u"(用户私信:该用户向你表明TA正单身)"
             msg_list.append(msg)
 
-        self.save_users(id_set, self.local_conversion_file)
+        self.save_users(id_set, self.local_conversation_file)
         return msg_list
 
     def send_private_msg(self, private_msg_set):
@@ -536,7 +536,7 @@ class Timeline:
                 # 监控用户私信信息
                 try:
                     conversation_msg_data = self.get_direct_message()
-                    conversation_msg_list = self.parse_conversion(conversation_msg_data)
+                    conversation_msg_list = self.parse_conversation(conversation_msg_data)
                     self.send_message(conversation_msg_list)
                 except:
                     pass

@@ -10,7 +10,7 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-logging.basicConfig(filename='log.txt',level=logging.ERROR)
+logging.basicConfig(filename='log.txt',level=logging.INFO)
 logging.info('Starting……')
 
 
@@ -83,7 +83,7 @@ class Timeline:
                 f.write('\n')
             f.close()
         except Exception as e:
-            print repr(e)
+            logging.error(repr(e))
 
     def save_followers(self, user_set, uid_file):
         '''
@@ -99,7 +99,7 @@ class Timeline:
                 f.write('\n')
             f.close()
         except Exception as e:
-            print repr(e)
+            logging.error(repr(e))
 
 
     def get_users_from_local(self, ff):
@@ -127,7 +127,7 @@ class Timeline:
                 request=requests.get(url, auth=(self.username, self.password))
                 data = request.json()
         except requests.ConnectionError, e:
-            print e
+            logging.error(repr(e))
             time.sleep(300)
             request=requests.get(url, auth=(self.username, self.password))
             data = request.json()
@@ -335,7 +335,7 @@ class Timeline:
                         msg_info_set.add((new_id, user_msg))
                         msg_info_set.add((id, new_user_msg))
                     except Exception as e:
-                        print e
+                        logging.error(repr(e))
 
         self.save_followers(all_user_uid_set, self.local_followers_file)
         return msg_info_set
@@ -496,11 +496,11 @@ class Timeline:
                 request=requests.post(self.send_private_msg_url, auth=(self.username, self.password), data=information)
                 print request.text
                 if request.status_code == 200:
-                    print "send private msg success"
+                    logging.info("send private msg success")
                 else:
-                    print "fail"
+                    logging.error("fail")
             except requests.ConnectionError, e:
-                print e
+                logging.error(repr(e))
 
     def send_message(self, msg_list):
         if len(msg_list):
@@ -510,12 +510,12 @@ class Timeline:
                 try:
                     tl.client.request('/statuses/update', 'POST',  body)
                 except Exception as e:
-                    print '发送消息失败: ' + repr(e)
+                    logging.error('发送消息失败: ' + repr(e))
                     break
 
     def run(self, interval):
         while(1):
-            print 'go on...'
+            logging.info('go on...')
             try:
                 # public_timeline抓取信息
                 try:
@@ -543,7 +543,7 @@ class Timeline:
 
                 time.sleep(interval)
             except Exception as e:
-                print "连接失败！" + str(e)
+                logging.error("连接失败！" + str(e)) 
                 time.sleep(interval)
 
 if __name__ == '__main__':
